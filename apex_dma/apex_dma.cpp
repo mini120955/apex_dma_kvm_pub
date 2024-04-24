@@ -43,6 +43,7 @@ bool actions_t = false;
 bool cactions_t = false;
 bool updateInsideValue_t = false;
 bool TriggerBotRun_t = false;
+bool burst_ready = false;  //Add burst function(添加连发)
 bool terminal_t = false;
 bool overlay_t = false;
 bool esp_t = false;
@@ -104,7 +105,7 @@ void TriggerBotRun() {
   // 设置随机数生成器
   std::random_device rd;
   std::mt19937 gen(rd());
-  std::uniform_int_distribution<> dis(50, 200);  // 正常或稍快的反应时间
+  std::uniform_int_distribution<> dis(150, 200);  // 正常或稍快的反应时间
   // 生成随机时间间隔，防止行为检测
   int randomInterval = dis(gen);
   std::this_thread::sleep_for(std::chrono::milliseconds(randomInterval));
@@ -112,6 +113,16 @@ void TriggerBotRun() {
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
   apex_mem.Write<int>(g_Base + OFFSET_IN_ATTACK + 0x8, 4);
   // printf("TriggerBotRun\n");
+}
+//Burst（连发)
+void burstshotrun(){
+  // 设置随机数生成器
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(70, 90); 
+  apex_mem.Write<int>(g_Base + OFFSET_IN_ATTACK + 0x8, 5);
+  std::this_thread::sleep_for(std::chrono::milliseconds(dis(gen)));
+  apex_mem.Write<int>(g_Base + OFFSET_IN_ATTACK + 0x8, 4);
 }
 
 /*inline void AutoGrapple(uintptr_t LocalPlayerEntity)    //自动超级钩
@@ -424,7 +435,7 @@ void ClientActions() {
         } else {
           aimbot.aiming = false;
         }
-        if (isPressed(g_settings.aimbot_hot_key_2)) {
+        if (zoom_state) {
             aimbot.smooth = g_settings.smooth - 30;
         }
         else {
@@ -432,25 +443,57 @@ void ClientActions() {
         }
       }
       if (g_settings.gamepad) {
-        // attackState == 120 || zoomState == 119
-        if (attack_state > 0 || zoom_state > 0) {
+        if (attack_state > 0 ) {//remove "zoom_state > 0"
           aimbot.aiming = true;
         } else {
           aimbot.aiming = false;
         }
+        if (zoom_state) {
+            aimbot.smooth = g_settings.smooth + 30;
+        }
+        else {
+            aimbot.smooth = g_settings.smooth;
+        }
       }
+      //连发枪快速点击
+      bool burst_shotgun;
+      switch (local_weapon_id) {
+      case idweapon_hemlock:    //赫姆洛克
+      case idweapon_p2020:      //p2020
+      case idweapon_g7_scout:   //G7
+      case idweapon_prowler: 		//猎兽
+      case idweapon_wingman:		//小帮手
+          burst_shotgun = true;
+          break;
+      default:
+          burst_shotgun = false;
+          break;
+      }
+      if (burst_shotgun && attack_state > 0 ){
+          burst_ready = true;
+      }
+      else {
+          burst_ready = false;
+      }
+      
       bool triggerbot_shotgun;
       switch (local_weapon_id) {
-      case idweapon_eva8:
-      case idweapon_mastiff:
-      case idweapon_mozambique:
-      case idweapon_peacekeeper:
+      case idweapon_eva8:    		        //EVA-8
+      case idweapon_mastiff:		        //敖犬
+      case idweapon_peacekeeper:        //和平捍卫者 
+      case idweapon_mozambique: 	      //莫桑比克
+      case idweapon_prowler: 		        //猎兽
+      case idweapon_sentinel:		        //哨兵
+      case idweapon_wingman:		        //小帮手
+      case idweapon_kraber:		          //克雷贝尔
+      case idweapon_3030_repeater:	    //3030连发枪
+      case idweapon_triple_take:	      //三重机
           triggerbot_shotgun = true;
           break;
       default:
           triggerbot_shotgun = false;
       }
-      if (g_settings.shotgun_auto_shot && triggerbot_shotgun && zoom_state) {
+      if (g_settings.shotgun_auto_shot && triggerbot_shotgun && isPressed(g_settings.trigger_bot_hot_key)) {
           trigger_ready = true;
       }
       else {
@@ -778,6 +821,9 @@ void DoActions() {
       aimbot.tmp_aimentity = 0;
       centity_to_index.clear();
       //tmp_specs.clear();
+      if(burst_ready){
+        burstshotrun();
+      }
       if (g_settings.firing_range) {
         int c = 0;
         for (int i = 0; i < playerentcount; i++) {
